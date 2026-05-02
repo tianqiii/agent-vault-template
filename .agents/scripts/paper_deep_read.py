@@ -551,7 +551,7 @@ def apply_rule_selection(
     for candidate in ordered_candidates:
         kind = str(candidate.get("kind", "figure"))
         if kind == "figure":
-            if figure_count >= TARGET_FIGURE_QUOTA or len(selected) >= max_figures:
+            if len(selected) >= max_figures:
                 continue
             selected.append(candidate)
             figure_count += 1

@@ -38,7 +38,6 @@ PRESET_MARGINS: dict[str, tuple[float, float, float, float]] = {
     "theorem": (24.0, 16.0, 24.0, 64.0),
     "figure": (36.0, 32.0, 36.0, 180.0),
     "figure-column": (20.0, 20.0, 20.0, 40.0),
-    "table": (28.0, 16.0, 28.0, 140.0),
     "equation": (18.0, 12.0, 18.0, 42.0),
 }
 
@@ -47,7 +46,6 @@ INFERRED_MARGINS: dict[str, tuple[float, float, float, float]] = {
     "theorem": (10.0, 10.0, 10.0, 18.0),
     "figure": (16.0, 16.0, 16.0, 20.0),
     "figure-column": (10.0, 12.0, 10.0, 18.0),
-    "table": (12.0, 12.0, 12.0, 32.0),
 }
 
 MAX_VERTICAL_GAP: dict[str, float] = {
@@ -55,7 +53,6 @@ MAX_VERTICAL_GAP: dict[str, float] = {
     "theorem": 220.0,
     "figure": 340.0,
     "figure-column": 260.0,
-    "table": 520.0,
 }
 
 
@@ -113,6 +110,16 @@ class SnapshotCandidate:
 class OCRLine:
     rect: pymupdf.Rect
     text: str
+
+
+TEXT_BLOCK_CACHE: dict[tuple[int, int], list[TextBlock]] = {}
+VISUAL_RECT_CACHE: dict[tuple[int, int], list[pymupdf.Rect]] = {}
+
+
+def page_cache_key(page: pymupdf.Page) -> tuple[int, int]:
+    parent_name = str(getattr(page.parent, "name", ""))
+    page_number = page.number
+    return (hash(parent_name), page_number if isinstance(page_number, int) else -1)
 
 
 def normalize_token(text: str) -> str:
@@ -418,6 +425,10 @@ def ocr_hits_from_lines(
 
 
 def get_text_blocks(page: pymupdf.Page) -> list[TextBlock]:
+    cache_key = page_cache_key(page)
+    cached = TEXT_BLOCK_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
     blocks: list[TextBlock] = []
     raw_blocks = cast(
         list[tuple[float, float, float, float, str, int, int]], page.get_text("blocks")
@@ -432,6 +443,7 @@ def get_text_blocks(page: pymupdf.Page) -> list[TextBlock]:
                 text=cleaned,
             )
         )
+    TEXT_BLOCK_CACHE[cache_key] = blocks
     return blocks
 
 
@@ -539,6 +551,10 @@ def select_caption_rect(
 
 
 def collect_visual_rects(page: pymupdf.Page) -> list[pymupdf.Rect]:
+    cache_key = page_cache_key(page)
+    cached = VISUAL_RECT_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
     rects: list[pymupdf.Rect] = []
     page_area = max(1.0, page.rect.width * page.rect.height)
 
@@ -573,6 +589,7 @@ def collect_visual_rects(page: pymupdf.Page) -> list[pymupdf.Rect]:
             continue
         if is_reasonable_visual_rect(rect):
             rects.append(rect)
+    VISUAL_RECT_CACHE[cache_key] = rects
     return rects
 
 

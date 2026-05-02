@@ -16,10 +16,24 @@ from pdf_tool import extract_text, probe, query_variants, snapshot_query, snapsh
 from write_index import update_index_file
 
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
+def find_workspace_root() -> Path:
+    """识别当前 vault 根目录，避免符号链接脚本把根目录解析到模板仓库。"""
+    candidates = [Path.cwd(), *Path.cwd().parents]
+    script_path = Path(__file__)
+    if not script_path.is_absolute():
+        script_path = Path.cwd() / script_path
+    candidates.extend(script_path.parents)
+    candidates.extend(script_path.resolve().parents)
+    for candidate in candidates:
+        if (candidate / "wiki").is_dir() and (candidate / "raw").is_dir():
+            return candidate
+    return script_path.resolve().parents[2]
+
+
+WORKSPACE_ROOT = find_workspace_root()
 WIKI_DIR = WORKSPACE_ROOT / "wiki"
 ASSETS_DIR = WORKSPACE_ROOT / "assets"
-CACHE_DIR = WORKSPACE_ROOT / ".agents" / "cache" / "papers"
+CACHE_DIR = WORKSPACE_ROOT / ".cache" / "agents" / "papers"
 INDEX_PATH = WIKI_DIR / "index.md"
 LOG_PATH = WIKI_DIR / "log.md"
 TARGET_FIGURE_QUOTA = 2

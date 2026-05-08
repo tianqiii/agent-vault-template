@@ -72,18 +72,8 @@
 5. **矛盾处理原则**：
    如果新摄入的知识与旧知识冲突，不要静默覆盖。在页面中新建 `## 知识冲突` 区块，将两种说法都保留并做对比。
 
-# 工作流指令说明 (Workflows / Skills)
-当被要求执行以下操作时，请遵循核心逻辑（未来可能由专用 Agent Skills 接管）：
-
-- `/ingest <路径>`：读取指定的 `raw/` 文件，将其核心价值提炼并整合到 `wiki/` 目录的相关概念/实体中。必须更新 `wiki/index.md` 的完整注册表与 `wiki/log.md`；如页面具有高复用价值，可再补入导航层。
-- `/query <问题>`：优先通过 JdocMunch 对 `wiki/sources/`、`wiki/entities/`、`wiki/concepts/`、`wiki/syntheses/` 做 section-level 检索，再对命中的少量段落或页面做深度阅读；只有当 JdocMunch 不可用、命中为空/失真，或用户问题本身是在询问索引结构时，才回退到通过仓库脚本搜索或直接读取 `wiki/index.md`。回答中必须使用 `[[wikilink]]` 标注引用来源。
-- `/query-with-code <问题>`：执行论文-代码对照分析时，必须先检索 Wiki 证据，再定位代码入口、模型、loss、训练/推理/评估链路；若输出可复用综合页，需写入 `wiki/syntheses/` 并刷新检索索引。
-- `/paper-deep-reading <PDF路径>`：深读论文 PDF 时，在 `wiki/sources/` 沉淀证据层、公式空位、图表与代码对照线索；新增或增强 Wiki 页面后必须同步索引与日志。
-- `/lint`：全局扫描 `wiki/` 目录，找出孤岛页面（没有双链）、死链（链接不存在的页面）、未进入 `wiki/index.md` 完整注册表的页面，以及存在逻辑冲突的地方，并向我报告。
-
 # 路径与检索索引泛化规则
 
-- 所有 workflow 必须先通过 `.agents/scripts/router.py` 获取 `workspace_root/wiki_dir/raw_dir/index_path/log_path`，禁止在 skill 或操作说明中写死某个 vault 的绝对路径、索引名或主题 tag。
 - JdocMunch 索引名使用 `<jdocmunch_repo>`：取 `workspace_root` 目录名，转小写，将空格与非字母数字合并为 `-`，去首尾 `-`，再追加 `-wiki`。
 - 任何写入 `wiki/` 的操作（新增/更新 source、entity、concept、synthesis）在同步 `wiki/index.md` 后，必须用 `jdocmunch_index_local(path="<wiki_dir>", name="<jdocmunch_repo>", incremental=True, use_ai_summaries=False, use_embeddings="auto")` 刷新检索索引。
 - 只有索引缺失、结构大改、section 检索连续失真或明确怀疑索引漂移时，才使用 `incremental=False` 做一次全量重建，并在 `wiki/log.md` 或最终报告中说明原因。

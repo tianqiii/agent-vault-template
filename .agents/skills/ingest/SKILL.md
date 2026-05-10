@@ -107,7 +107,8 @@ python ".agents/scripts/paper_deep_read.py" "<pdf路径>" --selection-mode agent
 
 ## 页面结构
 
-Source frontmatter 固定 5 字段；Metadata 放正文。创建时可暂指向当前 raw 路径，归档后改为 `raw/09-archived/{文件名}`：
+Source frontmatter 固定 5 字段；Metadata 放正文。
+直接指向归档后的路径 `raw/09-archived/{文件名}`：
 注意：`tags` 只放主题语义，必须非空、kebab-case。主题 tag 来自现有 tag 池优先，确需新增时先用 `wiki_tags.py --suggest-tag` 检查。
 ```markdown
 ---

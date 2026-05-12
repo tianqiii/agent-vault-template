@@ -113,7 +113,7 @@ python ".agents/scripts/write_synthesis.py" \
   --log-summary "保存 <主题> 综合页"
 ```
 
-`<raw_source_path>` 使用源材料相对 `workspace_root` 的路径；若资料已归档则指向归档路径，未归档则使用当前 raw 路径，不要写死示例 PDF。
+`<raw_source_path>` 使用源材料相对 `workspace_root` 的路径；若资料已归档则指向归档路径，未归档则使用当前 raw 路径，不要写死示例 PDF。脚本会自动更新反链和其他相关文章的最后更新日期。
 
 保存 synthesis 后刷新 JdocMunch 增量索引，避免后续查询找不到刚写入的综合页：
 

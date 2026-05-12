@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import re
+from datetime import date
 from pathlib import Path
 
 from write_index import update_index_file
@@ -52,6 +53,9 @@ def render_yaml_list(items: list[str]) -> str:
     return "[" + ", ".join(quote_yaml(item) for item in items) + "]"
 
 
+RELATED_HEADINGS = ("## 关联连接", "## 关键连接")
+
+
 def build_related_section(related: list[str]) -> str:
     if not related:
         return "## 关联连接\n- 待补充与本页相关的实体、概念或来源页面。"
@@ -61,13 +65,102 @@ def build_related_section(related: list[str]) -> str:
     return "\n".join(lines)
 
 
+def has_related_section(body: str) -> bool:
+    return any(heading in body for heading in RELATED_HEADINGS)
+
+
 def ensure_related_section(body: str, related: list[str]) -> str:
-    if "## 关联连接" in body:
+    if has_related_section(body):
         return body.rstrip() + "\n"
     return body.rstrip() + "\n\n" + build_related_section(related) + "\n"
 
 
-def build_document(title: str, tags: list[str], sources: list[str], body: str) -> str:
+def update_last_updated(text: str, today: str) -> str:
+    updated, count = re.subn(
+        r"(?m)^last_updated:\s*\d{4}-\d{2}-\d{2}\s*$",
+        f"last_updated: {today}",
+        text,
+        count=1,
+    )
+    if count:
+        return updated
+    if text.startswith("---\n"):
+        end = text.find("\n---", 4)
+        if end != -1:
+            return text[:end] + f"\nlast_updated: {today}" + text[end:]
+    return text
+
+
+def extract_frontmatter_title(text: str) -> str | None:
+    match = re.search(r'(?m)^title:\s*"?([^"\n]+)"?\s*$', text)
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def find_wiki_page(wiki_dir: Path, page: str) -> Path | None:
+    for path in wiki_dir.rglob("*.md"):
+        if path.stem == page:
+            return path
+    for path in wiki_dir.rglob("*.md"):
+        title = extract_frontmatter_title(path.read_text(encoding="utf-8"))
+        if title == page:
+            return path
+    return None
+
+
+def backlink_exists(text: str, page: str) -> bool:
+    return f"[[{page}]]" in text
+
+
+def append_backlink_to_related_section(text: str, backlink_line: str) -> str:
+    lines = text.splitlines()
+    heading_index = None
+    for index, line in enumerate(lines):
+        if line.strip() in RELATED_HEADINGS:
+            heading_index = index
+            break
+    if heading_index is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.extend(["## 关联连接", backlink_line])
+        return "\n".join(lines).rstrip() + "\n"
+
+    insert_index = len(lines)
+    for index in range(heading_index + 1, len(lines)):
+        if lines[index].startswith("## "):
+            insert_index = index
+            break
+    while insert_index > heading_index + 1 and not lines[insert_index - 1].strip():
+        insert_index -= 1
+    lines.insert(insert_index, backlink_line)
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def update_related_backlinks(
+    wiki_dir: Path, related: list[str], source_page: str, summary: str, today: str
+) -> list[str]:
+    updated_pages: list[str] = []
+    backlink_line = f"- [[{source_page}]] — {summary}"
+    for page in related:
+        path = find_wiki_page(wiki_dir, page)
+        if path is None:
+            print(f"警告: 未找到关联页面，跳过反链: {page}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        if backlink_exists(text, source_page):
+            next_text = update_last_updated(text, today)
+        else:
+            next_text = append_backlink_to_related_section(text, backlink_line)
+            next_text = update_last_updated(next_text, today)
+        if next_text != text:
+            path.write_text(next_text, encoding="utf-8")
+            updated_pages.append(page)
+    return updated_pages
+
+def build_document(
+    title: str, tags: list[str], sources: list[str], body: str, today: str
+) -> str:
     frontmatter = "\n".join(
         [
             "---",
@@ -75,7 +168,7 @@ def build_document(title: str, tags: list[str], sources: list[str], body: str) -
             "type: synthesis",
             f"tags: {render_yaml_list(tags)}",
             f"sources: {render_yaml_list(sources)}",
-            "last_updated: 2026-04-30",
+            f"last_updated: {today}",
             "---",
             "",
         ]
@@ -109,15 +202,24 @@ def main() -> None:
         validate_tag(tag)
     normalized_sources = [source.strip() for source in args.source if source.strip()]
     normalized_related = [page.strip() for page in args.related if page.strip()]
+    today = date.today().isoformat()
 
     document = build_document(
         title,
         normalized_tags,
         normalized_sources,
         ensure_related_section(body_text, normalized_related),
+        today,
     )
     synthesis_path = syntheses_dir / f"{slug}.md"
     write_synthesis_file(synthesis_path, document)
+    updated_backlinks = update_related_backlinks(
+        wiki_dir,
+        normalized_related,
+        slug,
+        args.summary.strip(),
+        today,
+    )
 
     update_index_file(
         index_path,
@@ -136,6 +238,8 @@ def main() -> None:
     )
     append_entry(log_path, entry)
     print(f"已写入 synthesis: {synthesis_path}")
+    if updated_backlinks:
+        print("已更新反链: " + ", ".join(updated_backlinks))
 
 
 if __name__ == "__main__":
